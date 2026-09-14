@@ -1,0 +1,78 @@
+{
+  "keys": {
+    "GROK-VIP-100K": {
+      "code": "GROK-VIP-100K",
+      "tokens": 100000,
+      "label": "VIP ключ (100,000 токенов)",
+      "createdAt": 1789373792789,
+      "isRedeemed": false,
+      "maxUses": 1,
+      "usedCount": 0
+    }
+  },
+  "users": {
+    "user_6m2byx4": {
+      "id": "user_6m2byx4",
+      "name": "Пользователь #user_",
+      "tokensBalance": 15001,
+      "totalTokensUsed": 0,
+      "createdAt": 1789373808657,
+      "lastActive": 1789374495942,
+      "isRegistered": false
+    },
+    "usr_1789374176433_rw91d": {
+      "id": "usr_1789374176433_rw91d",
+      "username": "rom",
+      "name": "Rom",
+      "tokensBalance": 19752,
+      "totalTokensUsed": 1595,
+      "createdAt": 1789374176433,
+      "lastActive": 1789374570666,
+      "isRegistered": true
+    },
+    "test_user_curl": {
+      "id": "test_user_curl",
+      "name": "Пользователь #test_",
+      "tokensBalance": 0,
+      "totalTokensUsed": 0,
+      "createdAt": 1789376237330,
+      "lastActive": 1789376237331,
+      "isRegistered": false
+    },
+    "usr_1789376240148_5z1by": {
+      "id": "usr_1789376240148_5z1by",
+      "username": "curluser",
+      "name": "Curl User",
+      "tokensBalance": 9845,
+      "totalTokensUsed": 155,
+      "createdAt": 1789376240148,
+      "lastActive": 1789376248623,
+      "isRegistered": true
+    }
+  },
+  "accounts": {
+    "usr_1789374176433_rw91d": {
+      "id": "usr_1789374176433_rw91d",
+      "username": "rom",
+      "passwordHash": "5a039c3151c05e7121635ae6cafda1e91a6d8735ec6abd871ab9c19994fca1e9",
+      "name": "Rom",
+      "tokensBalance": 19752,
+      "totalTokensUsed": 1595,
+      "createdAt": 1789374176433,
+      "lastLoginAt": 1789374249796,
+      "role": "user"
+    },
+    "usr_1789376240148_5z1by": {
+      "id": "usr_1789376240148_5z1by",
+      "username": "curluser",
+      "passwordHash": "d7b1f6fd2f01e7cd2c4c98995d9cf0cc970052963e67630ec8b15c5c05ea806c",
+      "name": "Curl User",
+      "tokensBalance": 9845,
+      "totalTokensUsed": 155,
+      "createdAt": 1789376240148,
+      "lastLoginAt": 1789376240148,
+      "role": "user"
+    }
+  },
+  "totalTokensConsumed": 1750
+}
