@@ -13,10 +13,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      // Anyone authenticated can read user profile, owners can update their own profile
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if isOwner(userId) || (isAuthenticated() && request.auth.token.email == 'sashanushan@gmail.com');
+      allow read, write: if true;
     }
 
     // Chats and messages

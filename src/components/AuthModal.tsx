@@ -221,9 +221,70 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      setError(fbResult.message || 'Не удалось создать аккаунт в Firebase');
+      // If already registered or specific error, display it
+      if (fbResult.message && fbResult.message.includes('уже зарегистрирован')) {
+        setError(fbResult.message);
+        return;
+      }
+
+      // 2. Fallback attempt: Server registration
+      const srvResult = await safeFetchJson<{ success: boolean; message?: string; account: UserAccount }>(
+        '/api/auth/register',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: cleanUser,
+            password,
+            name: registerName.trim() || cleanUser,
+            email: registerEmail.trim() || undefined,
+            guestUserId: currentUserId,
+          }),
+        },
+        5000
+      );
+
+      if (srvResult.ok && srvResult.data?.success && srvResult.data?.account) {
+        saveAccountPassword(cleanUser, password);
+        registerLocalAccount({
+          username: cleanUser,
+          email: registerEmail.trim() || undefined,
+          name: registerName.trim() || cleanUser,
+          password,
+          currentUserId,
+        });
+        syncSavedAccountsWithServer();
+        setSuccessMsg('Аккаунт успешно создан! Начислено 10 000 токенов.');
+        setTimeout(() => {
+          onSuccess(srvResult.data!.account);
+          onClose();
+        }, 400);
+        return;
+      }
+
+      // 3. Fallback: local account registration
+      const localResult = registerLocalAccount({
+        username: cleanUser,
+        email: registerEmail.trim() || undefined,
+        name: registerName.trim() || cleanUser,
+        password,
+        currentUserId,
+      });
+
+      if (localResult.success && localResult.account) {
+        saveAccountPassword(cleanUser, password);
+        syncSavedAccountsWithServer();
+        setSuccessMsg('Аккаунт успешно создан! Начислено 10 000 токенов.');
+        setTimeout(() => {
+          onSuccess(localResult.account!);
+          onClose();
+        }, 400);
+        return;
+      }
+
+      setError(fbResult.message || srvResult.data?.message || 'Не удалось создать аккаунт');
     } catch (err: any) {
-      setError('Ошибка регистрации в Firebase. Попробуйте еще раз.');
+      setError('Ошибка регистрации. Попробуйте еще раз.');
     } finally {
       setLoading(false);
     }
