@@ -243,6 +243,18 @@ export default function App() {
     }
   };
 
+  // Global listener for Google OAuth popup callbacks
+  useEffect(() => {
+    const handleGoogleAuthMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.account) {
+        handleAuthSuccess(event.data.account);
+        setIsAuthOpen(false);
+      }
+    };
+    window.addEventListener('message', handleGoogleAuthMessage);
+    return () => window.removeEventListener('message', handleGoogleAuthMessage);
+  }, [userId, sessions]);
+
   // Successful login or registration handler
   const handleAuthSuccess = (account: UserAccount) => {
     // Save current active sessions before switching

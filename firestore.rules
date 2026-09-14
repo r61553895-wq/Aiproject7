@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check ownership
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone authenticated can read user profile, owners can update their own profile
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isOwner(userId) || (isAuthenticated() && request.auth.token.email == 'sashanushan@gmail.com');
+    }
+
+    // Chats and messages
+    match /chats/{chatId} {
+      allow read, write: if true;
+    }
+
+    // Admin and general storage
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

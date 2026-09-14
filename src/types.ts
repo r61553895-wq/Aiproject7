@@ -8,6 +8,7 @@ export interface UserAccount {
   createdAt: number;
   lastLoginAt: number;
   role?: 'user' | 'admin';
+  avatar?: string;
 }
 
 export interface UserSession {
@@ -20,6 +21,7 @@ export interface UserSession {
   createdAt: number;
   lastActive: number;
   isRegistered?: boolean;
+  avatar?: string;
 }
 
 export interface TokenKey {

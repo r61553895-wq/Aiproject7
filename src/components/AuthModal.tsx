@@ -15,6 +15,10 @@ import {
   UserPlus,
   Users,
   Trash2,
+  Copy,
+  Check,
+  ChevronLeft,
+  ExternalLink,
 } from 'lucide-react';
 import type { UserAccount } from '../types';
 import {
@@ -25,6 +29,7 @@ import {
   syncSavedAccountsWithServer,
   getLocalPasswords,
 } from '../utils/safeApi';
+import { registerFirebaseUser, loginFirebaseUser } from '../lib/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -70,6 +75,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+
+
   if (!isOpen) return null;
 
   const resetForm = () => {
@@ -89,7 +96,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      // First attempt: Server API
+      // 1. Primary secure authentication via Firebase Auth & Firestore
+      const fbResult = await loginFirebaseUser({
+        login: loginField.trim(),
+        password,
+      });
+
+      if (fbResult.success && fbResult.account) {
+        saveAccountPassword(fbResult.account.username, password);
+        registerLocalAccount({
+          username: fbResult.account.username,
+          email: fbResult.account.email,
+          name: fbResult.account.name,
+          password,
+          currentUserId,
+        });
+        syncSavedAccountsWithServer();
+        setSuccessMsg('Вход выполнен через Firebase!');
+        setTimeout(() => {
+          onSuccess(fbResult.account!);
+          onClose();
+        }, 300);
+        return;
+      }
+
+      // 2. Server API fallback check
       const result = await safeFetchJson<{ success: boolean; message?: string; account: UserAccount }>(
         '/api/auth/login',
         {
@@ -101,7 +132,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             password,
           }),
         },
-        7000
+        5000
       );
 
       if (result.ok && result.data?.success && result.data?.account) {
@@ -115,10 +146,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      // If server returned user not found or server was restarted: check local storage
+      // 3. Local offline check
       const localCheck = loginLocalAccount({ login: loginField.trim(), password });
       if (localCheck.success && localCheck.account) {
-        // Restore account to server memoryStore so future requests sync cleanly
         syncSavedAccountsWithServer();
         setSuccessMsg('Вход выполнен успешно!');
         setTimeout(() => {
@@ -128,25 +158,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
 
-      if (!result.isHtmlOrEmpty && result.data?.message) {
-        setError(result.data.message);
-        return;
-      }
-
-      setError(localCheck.message || 'Неверный логин или пароль. Проверьте данные или зарегистрируйтесь.');
+      setError(fbResult.message || result.data?.message || 'Неверный логин или пароль');
     } catch (err: any) {
-      // Offline fallback
-      const localResult = loginLocalAccount({ login: loginField.trim(), password });
-      if (localResult.success && localResult.account) {
-        syncSavedAccountsWithServer();
-        setSuccessMsg('Вход выполнен успешно!');
-        setTimeout(() => {
-          onSuccess(localResult.account!);
-          onClose();
-        }, 300);
-      } else {
-        setError(localResult.message || 'Ошибка входа. Проверьте логин или зарегистрируйтесь.');
-      }
+      setError('Ошибка входа. Проверьте соединение.');
     } finally {
       setLoading(false);
     }
@@ -168,8 +182,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    if (!password || password.length < 4) {
-      setError('Пароль должен содержать минимум 4 символа');
+    if (!password || password.length < 6) {
+      setError('Пароль для Firebase аккаунта должен содержать минимум 6 символов');
       return;
     }
 
@@ -180,26 +194,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      // First attempt: Server API
-      const result = await safeFetchJson<{ success: boolean; message?: string; account: UserAccount }>(
-        '/api/auth/register',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: cleanUser,
-            email: registerEmail.trim() || undefined,
-            name: registerName.trim() || cleanUser,
-            password,
-            guestUserId: currentUserId,
-            currentUserId,
-          }),
-        },
-        8000
-      );
+      // 1. Primary secure registration with Firebase Authentication + Firestore
+      const fbResult = await registerFirebaseUser({
+        login: cleanUser,
+        email: registerEmail.trim() || undefined,
+        name: registerName.trim() || cleanUser,
+        password,
+        guestUserId: currentUserId,
+      });
 
-      if (result.ok && result.data?.success && result.data?.account) {
-        // Guarantee password and account are also preserved locally in browser
+      if (fbResult.success && fbResult.account) {
         saveAccountPassword(cleanUser, password);
         registerLocalAccount({
           username: cleanUser,
@@ -209,157 +213,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           currentUserId,
         });
         syncSavedAccountsWithServer();
-
-        setSuccessMsg(result.data.message || 'Аккаунт успешно создан! Начислено +10 000 токенов.');
+        setSuccessMsg(fbResult.message);
         setTimeout(() => {
-          onSuccess(result.data!.account);
+          onSuccess(fbResult.account!);
           onClose();
         }, 400);
         return;
       }
 
-      // If server explicitly returned a message (e.g. username taken on server)
-      if (!result.isHtmlOrEmpty && result.data?.message) {
-        setError(result.data.message);
-        return;
-      }
-
-      // Fallback: local registration
-      const localResult = registerLocalAccount({
-        username: cleanUser,
-        email: registerEmail.trim() || undefined,
-        name: registerName.trim() || cleanUser,
-        password,
-        currentUserId,
-      });
-
-      if (localResult.success && localResult.account) {
-        saveAccountPassword(cleanUser, password);
-        syncSavedAccountsWithServer();
-        setSuccessMsg(localResult.message);
-        setTimeout(() => {
-          onSuccess(localResult.account!);
-          onClose();
-        }, 400);
-      } else {
-        setError(localResult.message);
-      }
+      setError(fbResult.message || 'Не удалось создать аккаунт в Firebase');
     } catch (err: any) {
-      const localResult = registerLocalAccount({
-        username: cleanUser,
-        email: registerEmail.trim() || undefined,
-        name: registerName.trim() || cleanUser,
-        password,
-        currentUserId,
-      });
-
-      if (localResult.success && localResult.account) {
-        saveAccountPassword(cleanUser, password);
-        syncSavedAccountsWithServer();
-        setSuccessMsg(localResult.message);
-        setTimeout(() => {
-          onSuccess(localResult.account!);
-          onClose();
-        }, 400);
-      } else {
-        setError(localResult.message || 'Ошибка регистрации. Попробуйте снова.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async (userEmailInput?: string) => {
-    setLoading(true);
-    setError(null);
-    setSuccessMsg(null);
-
-    try {
-      // Determine Google email: from parameter, form input, prompt, or default
-      let email = userEmailInput;
-      if (!email) {
-        if (loginField.includes('@')) {
-          email = loginField.trim();
-        } else if (registerEmail.includes('@')) {
-          email = registerEmail.trim();
-        }
-      }
-
-      if (!email) {
-        const input = window.prompt(
-          'Вход через Google: введите ваш Google Email аккаунта:',
-          'sashanushan@gmail.com'
-        );
-        if (!input || !input.trim()) {
-          setLoading(false);
-          return;
-        }
-        email = input.trim();
-      }
-
-      email = email.toLowerCase().trim();
-      const baseName = email.split('@')[0];
-      const googleId = `g_${Math.abs(
-        email.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)
-      )}`;
-
-      // 1. Try server API
-      const res = await safeFetchJson<{ success: boolean; account: UserAccount; message?: string }>(
-        '/api/auth/google',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            googleId,
-            email,
-            name: baseName,
-            guestUserId: currentUserId,
-          }),
-        },
-        8000
-      );
-
-      if (res.ok && res.data?.success && res.data.account) {
-        const acc = res.data.account;
-        saveAccountPassword(acc.username, `google_${googleId}`);
-        registerLocalAccount({
-          username: acc.username,
-          email,
-          name: acc.name,
-          password: `google_${googleId}`,
-          currentUserId,
-        });
-        syncSavedAccountsWithServer();
-        setSuccessMsg(`Успешный вход через Google (${email})!`);
-        setTimeout(() => {
-          onSuccess(acc);
-          onClose();
-        }, 350);
-        return;
-      }
-
-      // 2. Client-side persistent backup
-      const local = registerLocalAccount({
-        username: baseName.replace(/[^a-zA-Z0-9_-]/g, '_'),
-        email,
-        name: baseName,
-        password: `google_${googleId}`,
-        currentUserId,
-      });
-
-      if (local.success && local.account) {
-        saveAccountPassword(local.account.username, `google_${googleId}`);
-        syncSavedAccountsWithServer();
-        setSuccessMsg(`Успешный вход через Google (${email})!`);
-        setTimeout(() => {
-          onSuccess(local.account!);
-          onClose();
-        }, 350);
-      } else {
-        setError(local.message || 'Не удалось завершить вход через Google');
-      }
-    } catch (err: any) {
-      setError('Ошибка входа через Google. Попробуйте ещё раз.');
+      setError('Ошибка регистрации в Firebase. Попробуйте еще раз.');
     } finally {
       setLoading(false);
     }
@@ -402,43 +266,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* Mode Switcher Tabs */}
+        {/* Security Trust Banner */}
         <div className="p-4 pb-0 relative z-10 space-y-3">
-          {/* Google Sign-In Fast-Pass */}
-          <button
-            id="auth-google-btn"
-            type="button"
-            onClick={() => handleGoogleSignIn()}
-            disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 border border-white/20 hover:border-white/30 text-white text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-md disabled:opacity-50"
-          >
-            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-              />
-            </svg>
-            <span>Войти через Google (в 1 клик)</span>
-          </button>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-white/10 w-full" />
-            <span className="bg-[#09090b] px-3 text-[10px] text-zinc-400 uppercase tracking-wider font-mono shrink-0">
-              или через логин
-            </span>
-            <div className="border-t border-white/10 w-full" />
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-[11px] text-zinc-300 leading-relaxed">
+              <span className="font-semibold text-white">Firebase Security:</span> единая облачная аутентификация Firebase Auth и хранилище Firestore. Ваши диалоги и баланс токенов надёжно защищены и синхронизируются в реальном времени.
+            </div>
           </div>
 
           <div className="grid grid-cols-2 p-1 bg-white/5 rounded-xl border border-white/10 text-xs font-medium">

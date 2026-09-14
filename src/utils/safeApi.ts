@@ -200,31 +200,24 @@ export function registerLocalAccount(params: {
   const lowerUser = params.username.toLowerCase().trim();
   const lowerEmail = params.email ? params.email.toLowerCase().trim() : '';
 
-  // Check if username or email is already in accounts
-  const existingIdx = accounts.findIndex(
+  if (lowerUser.length < 3) {
+    return { success: false, message: 'Логин должен содержать от 3 символов' };
+  }
+  if (params.password.length < 4) {
+    return { success: false, message: 'Пароль должен содержать от 4 символов' };
+  }
+
+  // Security: Check if username or email is already registered
+  const exists = accounts.some(
     (a) =>
       a.username.toLowerCase() === lowerUser ||
       (lowerEmail && a.email && a.email.toLowerCase() === lowerEmail)
   );
 
-  if (existingIdx !== -1) {
-    const existing = accounts[existingIdx];
-    existing.lastLoginAt = Date.now();
-    if (params.name) existing.name = params.name;
-    if (params.email) existing.email = params.email;
-    saveLocalAccounts(accounts);
-
-    const passwords = getLocalPasswords();
-    passwords[existing.username.toLowerCase()] = params.password;
-    saveLocalPasswords(passwords);
-
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(existing));
-    localStorage.setItem('grokson_tokens_balance', existing.tokensBalance.toString());
-
+  if (exists) {
     return {
-      success: true,
-      message: 'Успешный вход в существующий аккаунт!',
-      account: existing,
+      success: false,
+      message: 'Пользователь с таким логином или email уже зарегистрирован. Перейдите на вкладку «Вход» и введите пароль.',
     };
   }
 
@@ -281,9 +274,9 @@ export function loginLocalAccount(params: {
   }
 
   const savedPassword = passwords[account.username.toLowerCase()];
-  // If we have password saved, check it; if not saved (imported account), allow matching
+  // Security: strict password verification
   if (savedPassword && savedPassword !== params.password) {
-    return { success: false, message: 'Неверный пароль' };
+    return { success: false, message: 'Неверный пароль. Доступ запрещён.' };
   }
 
   account.lastLoginAt = Date.now();

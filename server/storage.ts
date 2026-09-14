@@ -379,7 +379,16 @@ export function registerAccount(
   }
 
   if (findAccountByUsername(cleanUsername)) {
-    return { success: false, message: 'Пользователь с таким логином уже существует' };
+    return { success: false, message: 'Пользователь с таким логином уже существует. Пожалуйста, выполните вход.' };
+  }
+
+  if (email && email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    for (const acc of Object.values(store.accounts)) {
+      if (acc.email && acc.email.toLowerCase() === cleanEmail) {
+        return { success: false, message: 'Пользователь с таким Email уже зарегистрирован. Пожалуйста, выполните вход.' };
+      }
+    }
   }
 
   const accountId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -473,3 +482,39 @@ export function getAccountById(id: string): UserAccount | null {
   delete (pub as any).passwordHash;
   return pub;
 }
+
+export function getAllAccounts(): UserAccount[] {
+  const store = loadStore();
+  if (!store.accounts) return [];
+  return Object.values(store.accounts).map(acc => {
+    const copy = { ...acc };
+    delete (copy as any).passwordHash;
+    return copy;
+  });
+}
+
+export function deleteAccount(id: string): boolean {
+  const store = loadStore();
+  let deleted = false;
+  if (store.accounts && store.accounts[id]) {
+    delete store.accounts[id];
+    deleted = true;
+  }
+  if (store.users && store.users[id]) {
+    delete store.users[id];
+    deleted = true;
+  }
+  if (deleted) saveStore(store);
+  return deleted;
+}
+
+export function updateAccountRole(id: string, role: 'admin' | 'user'): boolean {
+  const store = loadStore();
+  if (store.accounts && store.accounts[id]) {
+    store.accounts[id].role = role;
+    saveStore(store);
+    return true;
+  }
+  return false;
+}
+
